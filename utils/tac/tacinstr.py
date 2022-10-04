@@ -85,6 +85,11 @@ class LoadImm4(TACInstr):
 class Unary(TACInstr):
     def __init__(self, op: UnaryOp, dst: Temp, operand: Temp) -> None:
         super().__init__(InstrKind.SEQ, [dst], [operand], None)
+        """
+        op:操作指令
+        dst:操作结果
+        oprand:操作数
+        """
         self.op = op
         self.dst = dst
         self.operand = operand
@@ -104,6 +109,12 @@ class Unary(TACInstr):
 class Binary(TACInstr):
     def __init__(self, op: BinaryOp, dst: Temp, lhs: Temp, rhs: Temp) -> None:
         super().__init__(InstrKind.SEQ, [dst], [lhs, rhs], None)
+        """
+        op:操作指令
+        dst:操作结果值
+        lhs:左边数
+        rhs:右边数
+        """
         self.op = op
         self.dst = dst
         self.lhs = lhs
