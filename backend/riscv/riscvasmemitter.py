@@ -90,6 +90,13 @@ class RiscvAsmEmitter(AsmEmitter):
             elif instr.op == tacop.BinaryOp.NEQ:
                 self.seq.append(Riscv.Binary(tacop.BinaryOp.SUB, instr.dst, instr.lhs, instr.rhs))
                 self.seq.append(Riscv.Unary(tacop.UnaryOp.SNEZ, instr.dst, instr.dst))
+            elif instr.op == tacop.BinaryOp.LAD:
+                self.seq.append(Riscv.Unary(tacop.UnaryOp.SNEZ, instr.lhs, instr.lhs))
+                self.seq.append(Riscv.Unary(tacop.UnaryOp.SNEZ, instr.rhs, instr.rhs))
+                self.seq.append(Riscv.Binary(tacop.BinaryOp.AND, instr.dst, instr.lhs, instr.rhs))
+            elif instr.op == tacop.BinaryOp.LOR:
+                self.seq.append(Riscv.Binary(tacop.BinaryOp.OR, instr.dst, instr.lhs, instr.rhs))
+                self.seq.append(Riscv.Unary(tacop.UnaryOp.SNEZ, instr.dst, instr.dst))
             else:
                 self.seq.append(Riscv.Binary(instr.op, instr.dst, instr.lhs, instr.rhs))
 
