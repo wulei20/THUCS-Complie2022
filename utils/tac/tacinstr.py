@@ -88,7 +88,7 @@ class Unary(TACInstr):
         """
         op:操作指令
         dst:操作结果
-        oprand:操作数
+        oprand:操作数寄存器
         """
         self.op = op
         self.dst = dst
@@ -112,8 +112,8 @@ class Binary(TACInstr):
         """
         op:操作指令
         dst:操作结果值
-        lhs:左边数
-        rhs:右边数
+        lhs:左边数寄存器
+        rhs:右边数寄存器
         """
         self.op = op
         self.dst = dst
