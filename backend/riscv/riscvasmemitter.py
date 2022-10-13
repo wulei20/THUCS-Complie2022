@@ -101,7 +101,8 @@ class RiscvAsmEmitter(AsmEmitter):
                 self.seq.append(Riscv.Unary(tacop.UnaryOp.SNEZ, instr.dst, instr.dst))
             else:
                 self.seq.append(Riscv.Binary(instr.op, instr.dst, instr.lhs, instr.rhs))
-
+        def visitAssign(self, instr: Assign) -> None:
+            self.seq.append(Riscv.Move(instr.dst, instr.src))
         def visitCondBranch(self, instr: CondBranch) -> None:
             self.seq.append(Riscv.Branch(instr.cond, instr.label))
         

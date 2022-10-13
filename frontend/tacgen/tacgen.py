@@ -48,7 +48,7 @@ class TACGen(Visitor[FuncVisitor, None]):
         """
         1. Set the 'val' attribute of ident as the temp variable of the 'symbol' attribute of ident.
         """
-        pass
+        ident.setattr('val', ident.getattr('symbol').temp)
 
     def visitDeclaration(self, decl: Declaration, mv: FuncVisitor) -> None:
         """
@@ -56,7 +56,12 @@ class TACGen(Visitor[FuncVisitor, None]):
         2. Use mv.freshTemp to get a new temp variable for this symbol.
         3. If the declaration has an initial value, use mv.visitAssignment to set it.
         """
-        pass
+        decl.getattr('symbol').temp = mv.freshTemp()
+        if decl.init_expr:
+            decl.init_expr.accept(self, mv) # 别忘了！！！
+            decl.setattr(
+                'val', mv.visitAssignment(decl.getattr('symbol').temp, decl.init_expr.getattr('val'))
+            )
 
     def visitAssignment(self, expr: Assignment, mv: FuncVisitor) -> None:
         """
@@ -64,7 +69,10 @@ class TACGen(Visitor[FuncVisitor, None]):
         2. Use mv.visitAssignment to emit an assignment instruction.
         3. Set the 'val' attribute of expr as the value of assignment instruction.
         """
-        pass
+        expr.rhs.accept(self, mv)
+        expr.setattr(
+            'val', mv.visitAssignment(expr.lhs.getattr('symbol').temp, expr.rhs.getattr('val'))
+        )
 
     def visitIf(self, stmt: If, mv: FuncVisitor) -> None:
         stmt.cond.accept(self, mv)
@@ -145,7 +153,21 @@ class TACGen(Visitor[FuncVisitor, None]):
         """
         1. Refer to the implementation of visitIf and visitBinary.
         """
-        pass
+        expr.cond.accept(self, mv)  # 计算条件表达式值
+        skipLable = mv.freshLabel() # 跳转标签
+        exitLable = mv.freshLabel() # 退出标签
+        mv.visitCondBranch(
+            tacop.CondBranchOp.BEQ, expr.cond.getattr('val'), skipLable
+        )                           # 加入条件跳转指令
+        expr.then.accept(self, mv)  # 访问then
+        # 需注意条件表达式需要将表达式的整体设置一个val并赋值，这里用then的寄存器存储最终值，因此对else分支需要将else的内容存入then
+        expr.setattr('val', expr.then.getattr('val')) # 将then的val寄存器赋值到表达式val
+        mv.visitBranch(exitLable)   # 加入实际跳转对应分支指令
+        mv.visitLabel(skipLable)    # 添加分支标签到指令
+        expr.otherwise.accept(self, mv) #访问else
+        mv.visitAssignment(expr.then.getattr('val'), expr.otherwise.getattr('val')) # 将else的val拷贝到then的寄存器
+        mv.visitLabel(exitLable)    # 添加退出标签到指令
+
 
     def visitIntLiteral(self, expr: IntLiteral, mv: FuncVisitor) -> None:
         expr.setattr("val", mv.visitLoad(expr.value))
