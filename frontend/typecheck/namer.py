@@ -11,7 +11,6 @@ from frontend.symbol.symbol import Symbol
 from frontend.symbol.varsymbol import VarSymbol
 from frontend.type.array import ArrayType
 from frontend.type.type import DecafType
-import symbol
 from utils.error import *
 from utils.riscv import MAX_INT
 
