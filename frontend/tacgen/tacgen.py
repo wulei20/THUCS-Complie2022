@@ -44,6 +44,9 @@ class TACGen(Visitor[FuncVisitor, None]):
     def visitBreak(self, stmt: Break, mv: FuncVisitor) -> None:
         mv.visitBranch(mv.getBreakLabel())
 
+    def visitContinue(self, stmt: Continue, mv: FuncVisitor) -> None:
+        mv.visitBranch(mv.getContinueLabel())
+
     def visitIdentifier(self, ident: Identifier, mv: FuncVisitor) -> None:
         """
         1. Set the 'val' attribute of ident as the temp variable of the 'symbol' attribute of ident.
@@ -109,6 +112,41 @@ class TACGen(Visitor[FuncVisitor, None]):
         stmt.body.accept(self, mv)
         mv.visitLabel(loopLabel)
         mv.visitBranch(beginLabel)
+        mv.visitLabel(breakLabel)
+        mv.closeLoop()
+
+    def visitFor(self, stmt: For, mv: FuncVisitor) -> Optional[U]:
+        beginLabel = mv.freshLabel()
+        loopLabel = mv.freshLabel()
+        breakLabel = mv.freshLabel()
+        mv.openLoop(breakLabel, loopLabel)
+
+        stmt.init.accept(self, mv)
+        mv.visitLabel(beginLabel)
+        if stmt.cond:               ###注意！！！一定要有cond才能进行BEQ
+            stmt.cond.accept(self, mv)
+            mv.visitCondBranch(tacop.CondBranchOp.BEQ, stmt.cond.getattr("val"), breakLabel)
+
+        stmt.body.accept(self, mv)
+        mv.visitLabel(loopLabel)
+        stmt.update.accept(self, mv)
+        mv.visitBranch(beginLabel)
+        mv.visitLabel(breakLabel)
+        mv.closeLoop()
+
+    def visitDoWhile(self, stmt: DoWhile, mv: FuncVisitor) -> Optional[U]:
+        beginLabel = mv.freshLabel()
+        loopLabel = mv.freshLabel()
+        breakLabel = mv.freshLabel()
+        mv.openLoop(breakLabel, loopLabel)
+
+        mv.visitLabel(beginLabel)
+        stmt.body.accept(self, mv)
+        stmt.cond.accept(self, mv)
+        mv.visitCondBranch(tacop.CondBranchOp.BEQ, stmt.cond.getattr("val"), breakLabel)
+        mv.visitLabel(loopLabel)
+        mv.visitBranch(beginLabel)
+        
         mv.visitLabel(breakLabel)
         mv.closeLoop()
 

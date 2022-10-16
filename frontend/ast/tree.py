@@ -5,6 +5,7 @@ Modify this file if you want to add a new AST node.
 """
 
 from __future__ import annotations
+from ast import Expr
 
 from typing import Any, Generic, Optional, TypeVar, Union
 
@@ -188,6 +189,69 @@ class Break(Statement):
 
     def accept(self, v: Visitor[T, U], ctx: T):
         return v.visitBreak(self, ctx)
+
+    def is_leaf(self):
+        return True
+
+
+class For(Statement):
+    """
+    AST node of for statement.
+    """
+    
+    def __init__(self, init: Union[Expression, Declaration], cond: Expression, update: Expression, body: Statement) -> None:
+        super().__init__("for")
+        self.init = init
+        self.cond = cond
+        self.update = update
+        self.body = body
+
+    def __getitem__(self, key: int) -> Node:
+        return (self.init, self.cond, self.update, self.body)[key]
+
+    def __len__(self) -> int:
+        return 4
+
+    def accept(self, v: Visitor[T, U], ctx: T):
+        return v.visitFor(self, ctx)
+
+
+class DoWhile(Statement):
+    """
+    AST node of while statement.
+    """
+    
+    def __init__(self, body: Statement, cond: Expression) -> None:
+        super().__init__("dowhile")
+        self.body = body
+        self.cond = cond
+    
+    def __getitem__(self, key: int) -> Node:
+        return (self.body, self.cond)[key]
+
+    def __len__(self) -> int:
+        return 2
+    
+    def accept(self, v: Visitor[T, U], ctx: T) -> Optional[U]:
+        return v.visitDoWhile(self, ctx)
+
+
+class Continue(Statement):
+    """
+    AST node of continue statement.
+    """
+
+    def __init__(self) -> None:
+        super().__init__("continue")
+    
+    def __getitem__(self, key: int) -> Node:
+        raise _index_len_err(key, self)
+
+    def __len__(self) -> int:
+        return 0
+
+    def accept(self, v: Visitor[T, U], ctx: T):
+        return v.visitContinue(self, ctx)
 
     def is_leaf(self):
         return True
