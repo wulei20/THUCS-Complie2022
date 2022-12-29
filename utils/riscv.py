@@ -137,6 +137,47 @@ class Riscv:
         def __str__(self) -> str:
             return "j " + str(self.target)
 
+    class Call(TACInstr):
+        def __init__(self, func: Label, dst: Temp) -> None:
+            super().__init__(InstrKind.SEQ, [dst], [], func)
+            self.func = func
+
+        def __str__(self) -> str:
+            return "call " + str(self.func.name)
+    
+    class Store(TACInstr):
+        def __init__(self, src: Temp, base: Temp, offset: int) -> None:
+            super().__init__(InstrKind.SEQ, [], [src, base], None)
+            self.offset = offset
+
+        def __str__(self) -> str:
+            assert -2048 <= self.offset <= 2047  # Riscv imm [11:0]
+            return "sw " + Riscv.FMT_OFFSET.format(
+                str(self.srcs[0]), str(self.offset), str(self.srcs[1])
+            )
+
+    class SPAd(TACInstr):
+        def __init__(self, offset: int) -> None:
+            super().__init__(InstrKind.SEQ, [Riscv.SP], [Riscv.SP], None)
+            self.offset = offset
+        def __str__(self) -> str:
+            assert -2048 <= self.offset <= 2047  # Riscv imm [11:0]
+            return "addi " + Riscv.FMT3.format(
+                str(Riscv.SP), str(Riscv.SP), str(self.offset)
+            )
+    
+
+    class Load(TACInstr):
+        def __init__(self, dst: Temp, base: Temp, offset: int) -> None:
+            super().__init__(InstrKind.SEQ, [dst], [base], None)
+            self.offset = offset
+
+        def __str__(self) -> str:
+            assert -2048 <= self.offset <= 2047  # Riscv imm [11:0]
+            return "lw " + Riscv.FMT_OFFSET.format(
+                str(self.dsts[0]), str(self.offset), str(self.srcs[0])
+            )
+
     class SPAdd(NativeInstr):
         def __init__(self, offset: int) -> None:
             super().__init__(InstrKind.SEQ, [Riscv.SP], [Riscv.SP], None)

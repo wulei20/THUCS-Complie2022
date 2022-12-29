@@ -9,6 +9,7 @@ from utils.tac.funcvisitor import FuncVisitor
 from utils.tac.programwriter import ProgramWriter
 from utils.tac.tacprog import TACProg
 from utils.tac.temp import Temp
+from utils.error import *
 
 """
 The TAC generation phase: translate the abstract syntax tree into three-address code.
@@ -21,14 +22,24 @@ class TACGen(Visitor[FuncVisitor, None]):
 
     # Entry of this phase
     def transform(self, program: Program) -> TACProg:
-        mainFunc = program.mainFunc()
-        pw = ProgramWriter(["main"])
-        # The function visitor of 'main' is special.
-        mv = pw.visitMainFunc()
+        # mainFunc = program.mainFunc()
+        # pw = ProgramWriter(["main"])
+        # # The function visitor of 'main' is special.
+        # mv = pw.visitMainFunc()
 
-        mainFunc.body.accept(self, mv)
-        # Remember to call mv.visitEnd after the translation a function.
-        mv.visitEnd()
+        # mainFunc.body.accept(self, mv)
+        # # Remember to call mv.visitEnd after the translation a function.
+        # mv.visitEnd()
+
+        funcs = program.functions()
+        pw = ProgramWriter([funcname for funcname in funcs])
+        for funcname in funcs:
+            if funcs[funcname].body is not NULL:
+                fv = pw.visitFunc(funcname, len(funcs[funcname].params))
+                for param in funcs[funcname].params:
+                    param.ident.getattr('symbol').temp = fv.freshTemp()
+                funcs[funcname].body.accept(self, fv)
+                fv.visitEnd()
 
         # Remember to call pw.visitEnd before finishing the translation phase.
         return pw.visitEnd()
@@ -36,6 +47,15 @@ class TACGen(Visitor[FuncVisitor, None]):
     def visitBlock(self, block: Block, mv: FuncVisitor) -> None:
         for child in block:
             child.accept(self, mv)
+
+    def visitCall(self, call: Call, mv: FuncVisitor) -> None:
+        for item in call.argu_list:
+            item.accept(self, mv)
+        for item in call.argu_list:
+           mv.visitParam(item.getattr('val'))
+        call.setattr(
+            'val', mv.visitCall(mv.ctx.getFuncLabel(call.ident.value))
+        )
 
     def visitReturn(self, stmt: Return, mv: FuncVisitor) -> None:
         stmt.expr.accept(self, mv)
@@ -51,6 +71,8 @@ class TACGen(Visitor[FuncVisitor, None]):
         """
         1. Set the 'val' attribute of ident as the temp variable of the 'symbol' attribute of ident.
         """
+        # if not hasattr(ident.getattr('symbol'), 'temp'):
+        #     raise DecafGlobalVarDefinedTwiceError(ident.getattr('symbol'))
         ident.setattr('val', ident.getattr('symbol').temp)
 
     def visitDeclaration(self, decl: Declaration, mv: FuncVisitor) -> None:
@@ -115,7 +137,7 @@ class TACGen(Visitor[FuncVisitor, None]):
         mv.visitLabel(breakLabel)
         mv.closeLoop()
 
-    def visitFor(self, stmt: For, mv: FuncVisitor) -> Optional[U]:
+    def visitFor(self, stmt: For, mv: FuncVisitor) -> None:
         beginLabel = mv.freshLabel()
         loopLabel = mv.freshLabel()
         breakLabel = mv.freshLabel()
@@ -134,7 +156,7 @@ class TACGen(Visitor[FuncVisitor, None]):
         mv.visitLabel(breakLabel)
         mv.closeLoop()
 
-    def visitDoWhile(self, stmt: DoWhile, mv: FuncVisitor) -> Optional[U]:
+    def visitDoWhile(self, stmt: DoWhile, mv: FuncVisitor) -> None:
         beginLabel = mv.freshLabel()
         loopLabel = mv.freshLabel()
         breakLabel = mv.freshLabel()

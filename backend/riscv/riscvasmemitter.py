@@ -2,7 +2,7 @@ from textwrap import indent
 from typing import Sequence, Tuple
 
 from backend.asmemitter import AsmEmitter
-from utils.error import IllegalArgumentException
+from utils.error import *
 from utils.label.label import Label, LabelKind
 from utils.riscv import Riscv
 from utils.tac.reg import Reg
@@ -44,7 +44,7 @@ class RiscvAsmEmitter(AsmEmitter):
         for instr in func.getInstrSeq():
             instr.accept(selector)
 
-        info = SubroutineInfo(func.entry)
+        info = SubroutineInfo(func.entry, func.numArgs)
 
         return (selector.seq, info)
 
@@ -60,6 +60,8 @@ class RiscvAsmEmitter(AsmEmitter):
         def __init__(self, entry: Label) -> None:
             self.entry = entry
             self.seq = []
+            self.paraNum = 0
+            # self.callParaList : list[Param] = []
 
         # in step11, you need to think about how to deal with globalTemp in almost all the visit functions. 
         def visitReturn(self, instr: Return) -> None:
@@ -108,6 +110,44 @@ class RiscvAsmEmitter(AsmEmitter):
         
         def visitBranch(self, instr: Branch) -> None:
             self.seq.append(Riscv.Jump(instr.target))
+        
+        def visitParam(self, instr: Param) -> None:
+            self.paraNum += 1
+            # if self.paraNum <= 7:
+            #     self.seq.append(Riscv.Store(Riscv.ArgRegs[self.paraNum], Riscv.SP, -4 * (self.paraNum + 8)))
+            #     self.seq.append(Riscv.Move(Riscv.ArgRegs[self.paraNum], instr.T0))
+            # else:
+            self.seq.append(Riscv.Store(instr.T0, Riscv.SP, -4 * (self.paraNum + len(Riscv.CallerSaved))))
+            # self.callParaList.append(instr)
+
+        def visitCall(self, instr: Call) -> None:
+            for i in range(len(Riscv.CallerSaved)):
+                # if i < 7 or i > self.paraNum + 6:
+                self.seq.append(Riscv.Store(Riscv.CallerSaved[i], Riscv.SP, -4 * (i + 1)))
+            for i in range(min(self.paraNum, 8)):
+                self.seq.append(Riscv.Load(Riscv.ArgRegs[i], Riscv.SP, -4 * (i + len(Riscv.CallerSaved) + 1)))
+            for i in range(8, self.paraNum + 1):
+                self.seq.append(Riscv.Load(Riscv.T0, Riscv.SP, -4 * (i + len(Riscv.CallerSaved))))
+                self.seq.append(Riscv.Store(Riscv.T0, Riscv.SP, -4 * (len(Riscv.CallerSaved) + self.paraNum * 2 - i + 1)))
+            # for i in range(min(self.paraNum, 8)):
+            #     self.seq.append(Riscv.Store(Riscv.ArgRegs[i], Riscv.SP, -4 * (self.paraNum + 7)))
+            #     self.seq.append(Riscv.Load(Riscv.ArgRegs[i], Riscv.SP, -4 * (self.paraNum + len(Riscv.CallerSaved))))
+            self.seq.append(Riscv.SPAd(-4 * (len(Riscv.CallerSaved) + self.paraNum + max(0, self.paraNum - 8))))
+            # for i in range(len(self.callParaList)):
+            #     self.seq.append(Riscv.Store(self.callParaList[i].T0, Riscv.SP, 4 * i))
+            self.seq.append(Riscv.Call(instr.label, instr.dst))
+            self.seq.append(Riscv.SPAd(4 * (len(Riscv.CallerSaved) + self.paraNum + max(0, self.paraNum - 8))))
+            for i in range(len(Riscv.CallerSaved)):
+                # if i < 7 or i > self.paraNum + 6:
+                if i != 7:
+                    self.seq.append(Riscv.Load(Riscv.CallerSaved[i], Riscv.SP, -4 * (i + 1)))
+            # for i in range(1, min(self.paraNum, 8)):
+            #     self.seq.append(Riscv.Load(Riscv.ArgRegs[i], Riscv.SP, -4 * (i + 8)))
+            self.seq.append(Riscv.Move(instr.dsts[0], Riscv.A0))
+            self.seq.append(Riscv.Load(Riscv.A0, Riscv.SP, -32))
+            self.paraNum = 0
+            # self.callParaList = []
+
 
         # in step9, you need to think about how to pass the parameters and how to store and restore callerSave regs
         # in step11, you need to think about how to store the array 
@@ -118,9 +158,9 @@ RiscvAsmEmitter: an SubroutineEmitter for RiscV
 class RiscvSubroutineEmitter(SubroutineEmitter):
     def __init__(self, emitter: RiscvAsmEmitter, info: SubroutineInfo) -> None:
         super().__init__(emitter, info)
-        
+        self.numArgs = info.numArgs
         # + 4 is for the RA reg 
-        self.nextLocalOffset = 4 * len(Riscv.CalleeSaved) + 4
+        self.nextLocalOffset = 4 * len(Riscv.CalleeSaved) + 8
         
         # the buf which stored all the NativeInstrs in this function
         self.buf: list[NativeInstr] = []
@@ -135,7 +175,7 @@ class RiscvSubroutineEmitter(SubroutineEmitter):
 
     def emitComment(self, comment: str) -> None:
         # you can add some log here to help you debug
-        pass
+        self.printer.printComment("later emitted: " + comment)
     
     # store some temp to stack
     # usually happen when reaching the end of a basicblock
@@ -152,16 +192,35 @@ class RiscvSubroutineEmitter(SubroutineEmitter):
     # usually happen when using a temp which is stored to stack before
     # in step9, you need to think about the fuction parameters here
     def emitLoadFromStack(self, dst: Reg, src: Temp):
-        if src.index not in self.offsets:
-            raise IllegalArgumentException()
+        if src.index <  self.numArgs:
+            self.buf.append(Riscv.Load(dst, Riscv.FP, (src.index - 8) * 4))
+        elif src.index not in self.offsets:
+            # raise DecafGlobalVarDefinedTwiceError([str(item) for item in self.buf])
+            pass
         else:
             self.buf.append(
-                Riscv.NativeLoadWord(dst, Riscv.SP, self.offsets[src.index])
+                Riscv.Load(dst, Riscv.SP, self.offsets[src.index])
             )
 
     # add a NativeInstr to buf
     # when calling the fuction emitEnd, all the instr in buf will be transformed to RiscV code
     def emitNative(self, instr: NativeInstr):
+        # if instr.kind == InstrKind.CALL:
+        #     # used_list = []
+        #     # for i in range(len(Riscv.CallerSaved)):
+        #     #     if Riscv.CallerSaved[i].occupied:
+        #     #         used_list.append(i)
+        #     #         self.buf.append(
+        #     #         Riscv.NativeStoreWord(Riscv.CallerSaved[i], Riscv.SP, -4 * (i + 1))
+        #     #         )
+        #     self.buf.append(Riscv.SPAdd(-len(Riscv.CallerSaved) * 4 + 4 * (max(self.numArgs, 8) - 8)))
+        #     self.buf.append(instr)
+        #     self.buf.append(Riscv.SPAdd(len(Riscv.CallerSaved) * 4 + 4 * (max(self.numArgs, 8) - 8)))
+        #     # for i in used_list:
+        #     #     self.buf.append(
+        #     #     Riscv.NativeLoadWord(Riscv.CallerSaved[i], Riscv.SP, -4 * (i + 1))
+        #     #     )
+        # else:
         self.buf.append(instr)
 
     def emitLabel(self, label: Label):
@@ -179,6 +238,12 @@ class RiscvSubroutineEmitter(SubroutineEmitter):
                 self.printer.printInstr(
                     Riscv.NativeStoreWord(Riscv.CalleeSaved[i], Riscv.SP, 4 * i)
                 )
+        self.printer.printInstr(Riscv.NativeStoreWord(Riscv.RA, Riscv.SP, 4 * len(Riscv.CalleeSaved)))
+        self.printer.printInstr(
+            Riscv.NativeStoreWord(Riscv.FP, Riscv.SP, 4 * len(Riscv.CalleeSaved) + 4)
+        )
+
+        self.printer.println("addi " + Riscv.FMT3.format(str(Riscv.FP), str(Riscv.SP), str(self.nextLocalOffset)))
 
         self.printer.printComment("end of prologue")
         self.printer.println("")
@@ -205,6 +270,8 @@ class RiscvSubroutineEmitter(SubroutineEmitter):
                 self.printer.printInstr(
                     Riscv.NativeLoadWord(Riscv.CalleeSaved[i], Riscv.SP, 4 * i)
                 )
+        self.printer.printInstr(Riscv.NativeLoadWord(Riscv.RA, Riscv.SP, 4 * len(Riscv.CalleeSaved)))
+        self.printer.printInstr(Riscv.NativeLoadWord(Riscv.FP, Riscv.SP, 4 * len(Riscv.CalleeSaved) + 4))
 
         self.printer.printInstr(Riscv.SPAdd(self.nextLocalOffset))
         self.printer.printComment("end of epilogue")

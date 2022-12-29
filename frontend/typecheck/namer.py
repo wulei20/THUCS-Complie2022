@@ -36,17 +36,77 @@ class Namer(Visitor[ScopeStack, None]):
         # Check if the 'main' function is missing
         if not program.hasMainFunc():
             raise DecafNoMainFuncError
-
-        program.mainFunc().accept(self, ctx)
+        for func in program.children:
+            func.accept(self, ctx)
+        # program.mainFunc().accept(self, ctx)
 
     def visitFunction(self, func: Function, ctx: ScopeStack) -> None:
-        func.body.accept(self, ctx)
+        has_key =  ctx.globalscope.containsKey(func.ident.value)
+        symbol = None
+        if has_key:
+            symbol = ctx.globalscope.get(func.ident.value)
+            if (not symbol.isFunc) or (symbol.type.type != func.ret_t.type):  # 本需检查函数自变量类型是否一致，但由于只有int型故忽略，类型检查由typer完成
+                # raise DecafGlobalVarDefinedTwiceError(str(type(symbol.type)) + str(type(func.ret_t.type)))
+                raise DecafGlobalVarDefinedTwiceError(func.ident.value)
+            funcScope = symbol.scope
+            func.setattr('symbol', symbol)
+        else:
+            funcScope = Scope(ScopeKind.FORMAL)
+        if func.body:
+            if has_key:
+                if symbol.hasbody:
+                    raise DecafGlobalVarDefinedTwiceError(func.ident.value)
+            if not has_key:
+                newfunc = FuncSymbol(func.ident.value, func.ret_t, funcScope, True)
+                func.setattr('symbol', newfunc)
+                ctx.globalscope.declare(newfunc)
+            ctx.open(funcScope)
+            if not has_key:
+                for param in func.params:
+                    param.accept(self, ctx)
+            func.body.accept(self, ctx)
+            ctx.close()
+        else:
+            if not has_key:
+                newfunc = FuncSymbol(func.ident.value, func.ret_t, funcScope, False)
+                ctx.globalscope.declare(newfunc)
+                ctx.open(funcScope)
+                for param in func.params:
+                    param.accept(self, ctx)
+                ctx.close()
+                func.setattr('symbol', newfunc)
+        if not has_key:
+            func.getattr('symbol').para_type = []
+            for param in func.params:
+                func.getattr('symbol').addParaType(param.var_t.type)
+        
+    def visitCall(self, call: Call, ctx: ScopeStack) -> None:
+        conflict = ctx.currentScope().containsKey(call.ident.value)
+        if conflict:
+            raise DecafBadFuncCallError(call.ident.value)
+        has_key =  ctx.globalscope.containsKey(call.ident.value)
+        func = ctx.globalscope.get(call.ident.value)
+        if not has_key or not func.isFunc:
+            raise DecafUndefinedFuncError(call.ident.value)
+        call.setattr('symbol', func)
+        for item in call.argu_list:
+            item.accept(self, ctx)
+
+    def visitParameter(self, parameter: Parameter, ctx: ScopeStack) -> None:
+        symbol = ctx.findConflict(parameter.ident.value)
+        if symbol:
+            raise DecafDeclConflictError(parameter.ident.value)
+        new_sym = VarSymbol(parameter.ident.value, parameter.var_t.type)
+        ctx.declare(new_sym)
+        parameter.ident.setattr('symbol', new_sym)
 
     def visitBlock(self, block: Block, ctx: ScopeStack) -> None:
-        ctx.open(Scope(ScopeKind.LOCAL))
+        if ctx.currentScope().kind != ScopeKind.FORMAL:
+            ctx.open(Scope(ScopeKind.LOCAL))
         for child in block:
             child.accept(self, ctx)
-        ctx.close()
+        if ctx.currentScope().kind != ScopeKind.FORMAL:
+            ctx.close()
 
     def visitReturn(self, stmt: Return, ctx: ScopeStack) -> None:
         stmt.expr.accept(self, ctx)

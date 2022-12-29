@@ -66,6 +66,27 @@ class Assign(TACInstr):
     def accept(self, v: TACVisitor) -> None:
         v.visitAssign(self)
 
+class Param(TACInstr):
+    def __init__(self, T0: Temp) -> None:
+        super().__init__(InstrKind.SEQ, [T0], [], None)
+        self.T0 = T0
+
+    def __str__(self) -> str:
+        return "param %s" % (self.T0)
+    
+    def accept(self, v: TACVisitor) -> None:
+        v.visitParam(self)
+
+class Call(TACInstr):
+    def __init__(self, dst: Temp, label: Label) -> None:
+        super().__init__(InstrKind.SEQ, [dst], [], label)
+        self.dst = dst
+
+    def __str__(self) -> str:
+        return "%s = call %s" % (self.dst, self.label)
+
+    def accept(self, v: TACVisitor) -> None:
+        return v.visitCall(self)
 
 # Loading an immediate 32-bit constant.
 class LoadImm4(TACInstr):

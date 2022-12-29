@@ -41,6 +41,14 @@ class FuncVisitor:
         self.func.add(Assign(dst, src))
         return src
 
+    def visitParam(self, T0: Temp) -> None:
+        self.func.add(Param(T0))
+
+    def visitCall(self, label: Label) -> Temp:
+        temp = self.freshTemp()
+        self.func.add(Call(temp, label))
+        return temp
+
     def visitLoad(self, value: Union[int, str]) -> Temp:
         temp = self.freshTemp()
         if isinstance(value, int):

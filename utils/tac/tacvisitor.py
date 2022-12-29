@@ -10,6 +10,12 @@ class TACVisitor:
    def visitAssign(self, instr: Assign) -> None:
         self.visitOther(instr)
 
+   def visitParam(self, instr: Param) -> None:
+        self.visitOther(instr)
+
+   def visitCall(self, instr: Call) -> None:
+        self.visitOther(instr)
+
    def visitLoadImm4(self, instr: LoadImm4) -> None:
         self.visitOther(instr)
 

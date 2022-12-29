@@ -14,6 +14,7 @@ A scope stores the mapping from names to symbols. There are two kinds of scopes:
 class ScopeKind(Enum):
     GLOBAL = auto()
     LOCAL = auto()
+    FORMAL = auto()
 
 
 class Scope:

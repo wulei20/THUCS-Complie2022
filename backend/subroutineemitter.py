@@ -21,6 +21,7 @@ class SubroutineEmitter(ABC):
     def __init__(self, emitter: AsmEmitter, info: SubroutineInfo) -> None:
         self.info = info
         self.printer = emitter.printer
+        self.numArgs = 0
 
     @abstractmethod
     def emitComment(self, comment: str) -> None:

@@ -62,7 +62,9 @@ class BruteRegAlloc(RegAlloc):
         self.bindings.clear()
         for reg in self.emitter.allocatableRegs:
             reg.occupied = False
-
+        for i in range(min(subEmitter.numArgs, 8)):
+            # if i not in subEmitter.offsets:
+            self.bind(Temp(i), Riscv.ArgRegs[i])
         # in step9, you may need to think about how to store callersave regs here
         for loc in bb.allSeq():
             subEmitter.emitComment(str(loc.instr))
@@ -72,8 +74,10 @@ class BruteRegAlloc(RegAlloc):
         for tempindex in bb.liveOut:
             if tempindex in self.bindings:
                 subEmitter.emitStoreToStack(self.bindings.get(tempindex))
+                subEmitter.emitComment("store : " + str(self.bindings.get(tempindex)) + " to stack")
 
         if (not bb.isEmpty()) and (bb.kind is not BlockKind.CONTINUOUS):
+            subEmitter.emitComment(str(bb.locs[len(bb.locs) - 1].instr))
             self.allocForLoc(bb.locs[len(bb.locs) - 1], subEmitter)
 
     def allocForLoc(self, loc: Loc, subEmitter: SubroutineEmitter):

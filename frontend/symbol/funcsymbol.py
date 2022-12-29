@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Optional
 
 from frontend.scope.scope import Scope
 
@@ -10,10 +11,11 @@ Function symbol, representing a function definition.
 
 
 class FuncSymbol(Symbol):
-    def __init__(self, name: str, type: DecafType, scope: Scope) -> None:
+    def __init__(self, name: str, type: DecafType, scope: Scope, hasbody: bool = False) -> None:
         super().__init__(name, type)
         self.scope = scope
         self.para_type = []
+        self.hasbody = hasbody
 
     def __str__(self) -> str:
         return "function %s : %s" % (self.name, str(self.type))
