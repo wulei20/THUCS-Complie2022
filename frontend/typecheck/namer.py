@@ -36,8 +36,8 @@ class Namer(Visitor[ScopeStack, None]):
         # Check if the 'main' function is missing
         if not program.hasMainFunc():
             raise DecafNoMainFuncError
-        for func in program.children:
-            func.accept(self, ctx)
+        for fun_or_ident in program.children:
+            fun_or_ident.accept(self, ctx)
         # program.mainFunc().accept(self, ctx)
 
     def visitFunction(self, func: Function, ctx: ScopeStack) -> None:
@@ -103,10 +103,15 @@ class Namer(Visitor[ScopeStack, None]):
     def visitBlock(self, block: Block, ctx: ScopeStack) -> None:
         if ctx.currentScope().kind != ScopeKind.FORMAL:
             ctx.open(Scope(ScopeKind.LOCAL))
-        for child in block:
-            child.accept(self, ctx)
-        if ctx.currentScope().kind != ScopeKind.FORMAL:
+            for child in block:
+                child.accept(self, ctx)
             ctx.close()
+        else: 
+            ctx.currentScope().kind = ScopeKind.LOCAL
+            for child in block:
+                child.accept(self, ctx)
+            ctx.currentScope().kind = ScopeKind.FORMAL
+            
 
     def visitReturn(self, stmt: Return, ctx: ScopeStack) -> None:
         stmt.expr.accept(self, ctx)
@@ -179,6 +184,11 @@ class Namer(Visitor[ScopeStack, None]):
         s1 = VarSymbol(decl.ident.value, decl.var_t.type)
         ctx.declare(s1)
         decl.setattr('symbol', s1)
+        if ctx.isGlobalScope()and decl.init_expr:
+            if not isinstance(decl.init_expr, IntLiteral):
+                raise DecafGlobalVarBadInitValueError(str(decl.init_expr))
+            else:
+                s1.setInitValue(decl.init_expr.value)
         if decl.init_expr:
             decl.init_expr.accept(self, ctx)
 
@@ -216,6 +226,8 @@ class Namer(Visitor[ScopeStack, None]):
         symbol = ctx.lookup(ident.value) # 同样需要注意查找value而不是name
         if not symbol:
             raise DecafUndefinedVarError(ident.value)
+        if symbol.isFunc:
+            raise DecafBadFuncCallError(ident.value)
         ident.setattr('symbol', symbol)
 
     def visitIntLiteral(self, expr: IntLiteral, ctx: ScopeStack) -> None:

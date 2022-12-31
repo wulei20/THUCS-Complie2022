@@ -51,8 +51,9 @@ class Program(ListNode["Function"]):
     AST root. It should have only one children before step9.
     """
 
-    def __init__(self, *children: Function) -> None:
+    def __init__(self, *children: Union[Function, Declaration]) -> None:
         super().__init__("program", list(children))
+        self.globalScope = None
 
     def functions(self) -> dict[str, Function]:
         return {func.ident.value: func for func in self if isinstance(func, Function)}

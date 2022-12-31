@@ -10,6 +10,8 @@ from utils.tac.tacfunc import TACFunc
 from utils.tac.tacinstr import *
 from utils.tac.tacvisitor import TACVisitor
 from utils.tac import tacop
+from frontend.scope.globalscope import GlobalScopeType, ScopeKind
+from frontend.symbol.varsymbol import VarSymbol
 
 from ..subroutineemitter import SubroutineEmitter
 from ..subroutineinfo import SubroutineInfo
@@ -30,10 +32,35 @@ class RiscvAsmEmitter(AsmEmitter):
     
         # the start of the asm code
         # int step10, you need to add the declaration of global var here
+
+    def generateGlobal(self, globalScope: GlobalScopeType):
+        data_var: list[VarSymbol] = []
+        bss_var: list[VarSymbol] = []
+        for symbol in globalScope.symbols:
+            if isinstance(globalScope.symbols[symbol], VarSymbol):
+                if globalScope.symbols[symbol].initialized:
+                    data_var.append(globalScope.symbols[symbol])
+                else:
+                    bss_var.append(globalScope.symbols[symbol])
+        if len(data_var) > 0:
+            self.printer.println(".data")
+            for symbol in data_var:
+                self.printer.println(".global %s" % (symbol.name))
+                self.printer.println("%s:" % (symbol.name))
+                self.printer.println("    .word %d" % (symbol.initValue))
+            self.printer.println("")
+
+        if len(bss_var) > 0:
+            self.printer.println(".bss")
+            for symbol in bss_var:
+                self.printer.println(".global %s" % (symbol.name))
+                self.printer.println("%s:" % (symbol.name))
+                self.printer.println("    .space %d" % (4))
+            self.printer.println("")
+
         self.printer.println(".text")
         self.printer.println(".global main")
         self.printer.println("")
-
     # transform tac instrs to RiscV instrs
     # collect some info which is saved in SubroutineInfo for SubroutineEmitter
     def selectInstr(self, func: TACFunc) -> tuple[list[str], SubroutineInfo]:
@@ -148,6 +175,15 @@ class RiscvAsmEmitter(AsmEmitter):
             self.paraNum = 0
             # self.callParaList = []
 
+        def visitLoadSymbol(self, instr: LoadSymbol) -> None:
+            self.seq.append(Riscv.LoadSymbol(instr.dst, instr.symbol))
+
+        def visitLoad(self, instr: Load) -> None:
+            self.seq.append(Riscv.Load(instr.dst, instr.addr_temp, instr.offset))
+
+        def visitStore(self, instr: Store) -> None:
+            self.seq.append(Riscv.Store(instr.src, instr.addr_temp, instr.offset))
+
 
         # in step9, you need to think about how to pass the parameters and how to store and restore callerSave regs
         # in step11, you need to think about how to store the array 
@@ -195,8 +231,7 @@ class RiscvSubroutineEmitter(SubroutineEmitter):
         if src.index <  self.numArgs:
             self.buf.append(Riscv.Load(dst, Riscv.FP, (src.index - 8) * 4))
         elif src.index not in self.offsets:
-            # raise DecafGlobalVarDefinedTwiceError([str(item) for item in self.buf])
-            pass
+            raise IllegalArgumentException
         else:
             self.buf.append(
                 Riscv.Load(dst, Riscv.SP, self.offsets[src.index])

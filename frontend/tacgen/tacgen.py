@@ -33,6 +33,9 @@ class TACGen(Visitor[FuncVisitor, None]):
 
         funcs = program.functions()
         pw = ProgramWriter([funcname for funcname in funcs])
+        # for ident in program.children:
+        #     if isinstance(ident, Declaration):
+                
         for funcname in funcs:
             if funcs[funcname].body is not NULL:
                 fv = pw.visitFunc(funcname, len(funcs[funcname].params))
@@ -40,7 +43,6 @@ class TACGen(Visitor[FuncVisitor, None]):
                     param.ident.getattr('symbol').temp = fv.freshTemp()
                 funcs[funcname].body.accept(self, fv)
                 fv.visitEnd()
-
         # Remember to call pw.visitEnd before finishing the translation phase.
         return pw.visitEnd()
 
@@ -73,7 +75,11 @@ class TACGen(Visitor[FuncVisitor, None]):
         """
         # if not hasattr(ident.getattr('symbol'), 'temp'):
         #     raise DecafGlobalVarDefinedTwiceError(ident.getattr('symbol'))
-        ident.setattr('val', ident.getattr('symbol').temp)
+        if hasattr(ident.getattr('symbol'), 'temp'):
+            ident.setattr('val', ident.getattr('symbol').temp)
+        else:
+            temp = mv.visitLoad(ident.value)
+            ident.setattr('val', mv.visitLoadTemp(temp, 0))
 
     def visitDeclaration(self, decl: Declaration, mv: FuncVisitor) -> None:
         """
@@ -95,9 +101,13 @@ class TACGen(Visitor[FuncVisitor, None]):
         3. Set the 'val' attribute of expr as the value of assignment instruction.
         """
         expr.rhs.accept(self, mv)
-        expr.setattr(
-            'val', mv.visitAssignment(expr.lhs.getattr('symbol').temp, expr.rhs.getattr('val'))
-        )
+        if hasattr(expr.lhs.getattr('symbol'), 'temp'):
+            expr.setattr(
+                'val', mv.visitAssignment(expr.lhs.getattr('symbol').temp, expr.rhs.getattr('val'))
+            )
+        else:
+            temp = mv.visitLoad(expr.lhs.value)
+            mv.visitStoreTemp(expr.rhs.getattr('val'), temp, 0)
 
     def visitIf(self, stmt: If, mv: FuncVisitor) -> None:
         stmt.cond.accept(self, mv)

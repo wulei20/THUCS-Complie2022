@@ -54,8 +54,16 @@ class FuncVisitor:
         if isinstance(value, int):
             self.func.add(LoadImm4(temp, value))
         else:
-            self.func.add(LoadStrConst(temp, value))
+            self.func.add(LoadSymbol(temp, value))
         return temp
+
+    def visitLoadTemp(self, temp: Temp, offset: int) -> Temp:
+        temp1 = self.freshTemp()
+        self.func.add(Load(temp1, temp, offset))
+        return temp1
+
+    def visitStoreTemp(self, src: Temp, addr_temp: Temp, offset: int) -> None:
+        self.func.add(Store(src, addr_temp, offset))
 
     def visitUnary(self, op: UnaryOp, operand: Temp) -> Temp:
         temp = self.freshTemp()

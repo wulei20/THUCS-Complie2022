@@ -52,6 +52,8 @@ def step_tac(p: Program):
     tacgen = TACGen()
     tac_prog = tacgen.transform(p)
 
+    tac_prog.globalScope = p.globalScope
+
     return tac_prog
 
 

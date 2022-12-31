@@ -101,6 +101,43 @@ class LoadImm4(TACInstr):
     def accept(self, v: TACVisitor) -> None:
         v.visitLoadImm4(self)
 
+class Load(TACInstr):
+    def __init__(self, dst: Temp, addr_temp: Temp, offset: int) -> None:
+        super().__init__(InstrKind.SEQ, [dst], [addr_temp], None)
+        self.addr_temp = addr_temp
+        self.offset = offset
+        self.dst = dst
+    
+    def __str__(self) -> str:
+        return "%s = load %s, %d" % (self.dst, self.T1, self.offset)
+
+    def accept(self, v: TACVisitor) -> None:
+        return v.visitLoad(self)
+
+class Store(TACInstr):
+    def __init__(self, src: Temp, addr_temp: Temp, offset: int) -> None:
+        super().__init__(InstrKind.SEQ, [], [src, addr_temp], None)
+        self.src = src
+        self.addr_temp = addr_temp
+        self.offset = offset
+
+    def __str__(self) -> str:
+        return "store %s, %s, %d" % (self.src, self.addr_temp, self.offset)
+
+    def accept(self, v: TACVisitor) -> None:
+        return v.visitStore(self)
+
+class LoadSymbol(TACInstr):
+    def __init__(self, dst: Temp, symbol: str) -> None:
+        super().__init__(InstrKind.SEQ, [], [], None)
+        self.dst = dst
+        self.symbol = symbol
+
+    def __str__(self) -> str:
+        return "%s = load_symbol %s" % (self.dst, self.symbol)
+
+    def accept(self, v: TACVisitor) -> None:
+        return v.visitLoadSymbol(self)
 
 # Unary operations.
 class Unary(TACInstr):

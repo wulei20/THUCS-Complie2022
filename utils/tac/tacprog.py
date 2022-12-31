@@ -7,6 +7,7 @@ from .tacfunc import TACFunc
 class TACProg:
     def __init__(self, funcs: list[TACFunc]) -> None:
         self.funcs = funcs
+        self.globalScope = None
 
     def printTo(self) -> None:
         for func in self.funcs:

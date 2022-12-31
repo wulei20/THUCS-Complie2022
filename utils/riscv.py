@@ -178,6 +178,17 @@ class Riscv:
                 str(self.dsts[0]), str(self.offset), str(self.srcs[0])
             )
 
+    class LoadSymbol(TACInstr):
+        def __init__(self, dst: Temp, name: str) -> None:
+            super().__init__(InstrKind.SEQ, [dst], [], None)
+            self.dst = dst
+            self.name = name
+
+        def __str__(self) -> str:
+            return "la " + Riscv.FMT2.format(
+                str(self.dsts[0]), self.name
+            )
+
     class SPAdd(NativeInstr):
         def __init__(self, offset: int) -> None:
             super().__init__(InstrKind.SEQ, [Riscv.SP], [Riscv.SP], None)

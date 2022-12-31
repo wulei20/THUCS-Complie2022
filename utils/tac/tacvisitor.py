@@ -19,6 +19,15 @@ class TACVisitor:
    def visitLoadImm4(self, instr: LoadImm4) -> None:
         self.visitOther(instr)
 
+   def visitLoad(self, instr: Load) -> None:
+        self.visitOther(instr)
+
+   def visitStore(self, instr: Store) -> None:
+        self.visitOther(instr)
+
+   def visitLoadSymbol(self, instr: LoadSymbol) -> None:
+        self.visitOther(instr)
+
    def visitUnary(self, instr: Unary) -> None:
         self.visitOther(instr)
 

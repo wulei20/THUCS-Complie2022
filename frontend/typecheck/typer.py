@@ -3,7 +3,6 @@ from typing import Protocol, TypeVar
 from frontend.ast.node import Node
 from frontend.ast.tree import *
 from frontend.ast.visitor import Visitor
-from frontend.scope.globalscope import GlobalScope
 from frontend.scope.scope import Scope
 from frontend.scope.scopestack import ScopeStack
 from frontend.type.array import ArrayType
@@ -20,7 +19,6 @@ class Typer(Visitor[ScopeStack, None]):
 
     # Entry of this phase
     def transform(self, program: Program) -> Program:
-        program.globalScope = GlobalScope
         ctx = ScopeStack(program.globalScope)
         
         program.accept(self, ctx)
