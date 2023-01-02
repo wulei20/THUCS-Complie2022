@@ -15,7 +15,7 @@ import ply.yacc as yacc
 
 from frontend.ast.tree import *
 from frontend.lexer import lex
-from utils.error import DecafSyntaxError
+from utils.error import *
 
 tokens = lex.tokens
 error_stack = list[DecafSyntaxError]()
@@ -211,9 +211,12 @@ def p_opt_expression_empty(p):
 
 def p_declaration(p):
     """
-    declaration : type Identifier
+    declaration : type Identifier arrayindex
     """
-    p[0] = Declaration(p[1], p[2])
+    if p[3]:
+        p[0] = Declaration(p[1], IndexExpr(p[2], p[3], True))
+    else:
+        p[0] = Declaration(p[1], p[2])
 
 
 def p_declaration_init(p):
@@ -221,7 +224,19 @@ def p_declaration_init(p):
     declaration : type Identifier Assign expression
     """
     p[0] = Declaration(p[1], p[2], p[4])
+    
+def p_arrayindex_empty(p):
+    """
+    arrayindex : empty
+    """
+    p[0] = []
 
+def p_arrayindex(p):
+    """
+    arrayindex : arrayindex LBracket Integer RBracket
+    """
+    p[1].append(p[3])
+    p[0] = p[1]
 
 def p_expression_precedence(p):
     """
@@ -257,6 +272,18 @@ def p_postfix_expression(p):
     """
     p[0] = Call(p[1], p[3])
 
+def p_postfix_index(p):
+    """
+    postfix : postfix LBracket expression RBracket
+    """
+    if isinstance(p[1], IndexExpr):
+        p[1].index.append(p[3])
+        p[0] = p[1]
+    elif isinstance(p[1], Identifier):
+        p[0] = IndexExpr(p[1], [p[3]], False)
+    else:
+        raise DecafBadAssignTypeError()
+
 def p_expression_list(p):
     """
     expression_list : expression_list Comma expression
@@ -278,7 +305,7 @@ def p_expression_list_single(p):
 
 def p_binary_expression(p):
     """
-    assignment : Identifier Assign expression
+    assignment : unary Assign expression
     logical_or : logical_or Or logical_and
     logical_and : logical_and And bit_or
     bit_or : bit_or BitOr xor

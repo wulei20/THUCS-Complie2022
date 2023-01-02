@@ -156,6 +156,15 @@ class Riscv:
                 str(self.srcs[0]), str(self.offset), str(self.srcs[1])
             )
 
+    class Alloc(TACInstr):
+        def __init__(self, dst: Temp, size: int) -> None:
+            super().__init__(InstrKind.SEQ, [dst], [], None)
+            self.dst = dst
+            self.size = size
+        
+        def __str__(self) -> str:
+            return "%s = alloc %d" % (self.dst, self.size)
+
     class SPAd(TACInstr):
         def __init__(self, offset: int) -> None:
             super().__init__(InstrKind.SEQ, [Riscv.SP], [Riscv.SP], None)

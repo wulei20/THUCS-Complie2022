@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from backend.subroutineinfo import SubroutineInfo
 from utils.label.label import Label
 from utils.tac.nativeinstr import NativeInstr
+from utils.riscv import Riscv
 from utils.tac.reg import Reg, Temp
 
 from .asmemitter import AsmEmitter
@@ -37,6 +38,10 @@ class SubroutineEmitter(ABC):
 
     @abstractmethod
     def emitNative(self, instr: NativeInstr):
+        raise NotImplementedError
+        
+    @abstractmethod
+    def emitAllocStack(self, instr: Riscv.Alloc, dst: Reg):
         raise NotImplementedError
 
     @abstractmethod

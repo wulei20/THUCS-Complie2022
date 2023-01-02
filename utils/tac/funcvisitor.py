@@ -65,6 +65,11 @@ class FuncVisitor:
     def visitStoreTemp(self, src: Temp, addr_temp: Temp, offset: int) -> None:
         self.func.add(Store(src, addr_temp, offset))
 
+    def visitAlloc(self, size: int) -> Temp:
+        temp = self.freshTemp()
+        self.func.add(Alloc(temp, size))
+        return temp
+
     def visitUnary(self, op: UnaryOp, operand: Temp) -> Temp:
         temp = self.freshTemp()
         self.func.add(Unary(op, temp, operand))

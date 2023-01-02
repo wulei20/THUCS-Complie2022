@@ -32,6 +32,13 @@ class ArrayType(DecafType):
         else:
             return f"[{self.length}]"
 
+    def getdim(self, k) -> int:
+        "To get the length of kth dim"
+        if k == 0:
+            return self.length
+        else:
+            return self.base.getdim(k - 1)
+
     @property
     def size(self) -> int:
         "To get the full size of an array, e.g. size(int[2][3]) == 2 * 3 * WORD_SIZE."
@@ -61,9 +68,9 @@ class ArrayType(DecafType):
         return f"{self.full_indexed}{self._indexes}"
 
     @classmethod
-    def multidim(cls, base: DecafType, *dims: int) -> ArrayType:
+    def multidim(cls, base: DecafType, dims: list[int]) -> ArrayType:
         "To quickly generate a high-dimension array."
         if dims:
-            return cls(cls.multidim(base, *dims[1:]), dims[0])
+            return cls(cls.multidim(base, dims[1:]), dims[0])
         else:
             return base  # type: ignore

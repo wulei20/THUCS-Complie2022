@@ -105,7 +105,7 @@ class Parameter(Node):
     AST node that represents a parameter of function
     """
 
-    def __init__(self, var_t: TypeLiteral, ident: Identifier) -> None:
+    def __init__(self, var_t: TypeLiteral, ident: Union[Identifier, IndexExpr]) -> None:
         super().__init__("parameter")
         self.var_t = var_t
         self.ident = ident
@@ -140,6 +140,26 @@ class Call(Node):
     
     def accept(self, v: Visitor[T, U], ctx: T):
         return v.visitCall(self, ctx)
+
+class IndexExpr(Node):
+    """
+    AST node of index of an array
+    """
+    def __init__(self, base: Identifier, index: list[Expression | IntLiteral], isDeclaration: bool) -> None:
+        super().__init__("indexExpr")
+        self.base = base
+        self.index = index
+        self.isDeclaration = isDeclaration
+
+    def __getitem__(self, key: int) -> Node:
+        return (self.base, self.index)[key]
+
+    def __len__(self) -> int:
+        return 2
+
+    def accept(self, v: Visitor[T, U], ctx: T):
+        return v.visitIndexExpr(self, ctx)
+
 
 class Statement(Node):
     """
@@ -324,7 +344,7 @@ class Declaration(Node):
     def __init__(
         self,
         var_t: TypeLiteral,
-        ident: Identifier,
+        ident: Union[Identifier, IndexExpr],
         init_expr: Optional[Expression] = None,
     ) -> None:
         super().__init__("declaration")
@@ -414,7 +434,7 @@ class Assignment(Binary):
     It's actually a kind of binary expression, but it'll make things easier if we use another accept method to handle it.
     """
 
-    def __init__(self, lhs: Identifier, rhs: Expression) -> None:
+    def __init__(self, lhs: Union[Identifier, IndexExpr], rhs: Expression) -> None:
         super().__init__(BinaryOp.Assign, lhs, rhs)
 
     def accept(self, v: Visitor[T, U], ctx: T):

@@ -81,18 +81,44 @@ class TACGen(Visitor[FuncVisitor, None]):
             temp = mv.visitLoad(ident.value)
             ident.setattr('val', mv.visitLoadTemp(temp, 0))
 
+    def visitIndexExpr(self, indexExpr: IndexExpr, mv: FuncVisitor) -> None:
+        indexExpr.index[0].accept(self, mv)
+        temp = indexExpr.index[0].getattr('val')
+        for i in range(1, len(indexExpr.index)):
+            lentemp = mv.visitLoad(indexExpr.getattr('symbol').type.getdim(i))
+            temp = mv.visitBinary(tacop.BinaryOp.MUL, temp, lentemp)
+            indexExpr.index[i].accept(self, mv)
+            temp = mv.visitBinary(tacop.BinaryOp.ADD, temp, indexExpr.index[i].getattr('val'))
+        lentemp = mv.visitLoad(4)
+        temp = mv.visitBinary(tacop.BinaryOp.MUL, temp, lentemp)
+        if hasattr(indexExpr.getattr('symbol'), "baseTemp"):
+            baseTemp = indexExpr.getattr('symbol').baseTemp
+        else:
+            baseTemp = mv.visitLoad(indexExpr.base.value)
+        addrtemp = mv.visitBinary(tacop.BinaryOp.ADD, temp, baseTemp)
+        indexExpr.setattr('val', mv.visitLoadTemp(addrtemp, 0))
+        indexExpr.setattr('addr', addrtemp)
+        return
+
     def visitDeclaration(self, decl: Declaration, mv: FuncVisitor) -> None:
         """
         1. Get the 'symbol' attribute of decl.
         2. Use mv.freshTemp to get a new temp variable for this symbol.
         3. If the declaration has an initial value, use mv.visitAssignment to set it.
         """
-        decl.getattr('symbol').temp = mv.freshTemp()
-        if decl.init_expr:
-            decl.init_expr.accept(self, mv) # 别忘了！！！
-            decl.setattr(
-                'val', mv.visitAssignment(decl.getattr('symbol').temp, decl.init_expr.getattr('val'))
-            )
+        if isinstance(decl.ident, Identifier):
+            decl.getattr('symbol').temp = mv.freshTemp()
+            # if decl.ident.value != 'k':
+            #     raise DecafBadFuncCallError(decl.getattr('symbol').temp)
+            if decl.init_expr:
+                decl.init_expr.accept(self, mv) # 别忘了！！！
+                decl.setattr(
+                    'val', mv.visitAssignment(decl.getattr('symbol').temp, decl.init_expr.getattr('val'))
+                )
+        elif isinstance(decl.ident, IndexExpr):
+            decl.getattr('symbol').baseTemp = mv.visitAlloc(decl.getattr('symbol').type.size) # step12 需要设置init_expr
+        else:
+            raise DecafBadAssignTypeError()
 
     def visitAssignment(self, expr: Assignment, mv: FuncVisitor) -> None:
         """
@@ -101,13 +127,23 @@ class TACGen(Visitor[FuncVisitor, None]):
         3. Set the 'val' attribute of expr as the value of assignment instruction.
         """
         expr.rhs.accept(self, mv)
-        if hasattr(expr.lhs.getattr('symbol'), 'temp'):
-            expr.setattr(
-                'val', mv.visitAssignment(expr.lhs.getattr('symbol').temp, expr.rhs.getattr('val'))
-            )
+        if not expr.rhs.getattr('val'):
+            raise DecafBadIntValueError(expr.rhs)
+        if isinstance(expr.lhs, Identifier):
+            if hasattr(expr.lhs.getattr('symbol'), 'temp'):
+                expr.setattr(
+                    'val', mv.visitAssignment(expr.lhs.getattr('symbol').temp, expr.rhs.getattr('val'))
+                )
+            else:
+                temp = mv.visitLoad(expr.lhs.value)
+                mv.visitStoreTemp(expr.rhs.getattr('val'), temp, 0)
+                expr.setattr('val', expr.rhs.getattr('val'))
+        elif isinstance(expr.lhs, IndexExpr):
+            expr.lhs.accept(self, mv)
+            mv.visitStoreTemp(expr.rhs.getattr('val'), expr.lhs.getattr('addr'), 0)
+            expr.setattr('val', expr.rhs.getattr('val'))
         else:
-            temp = mv.visitLoad(expr.lhs.value)
-            mv.visitStoreTemp(expr.rhs.getattr('val'), temp, 0)
+            raise DecafBadAssignTypeError()
 
     def visitIf(self, stmt: If, mv: FuncVisitor) -> None:
         stmt.cond.accept(self, mv)

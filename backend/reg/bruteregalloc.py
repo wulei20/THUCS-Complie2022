@@ -98,8 +98,10 @@ class BruteRegAlloc(RegAlloc):
                 dstRegs.append(temp)
             else:
                 dstRegs.append(self.allocRegFor(temp, False, loc.liveIn, subEmitter))
-
-        subEmitter.emitNative(instr.toNative(dstRegs, srcRegs))
+        if isinstance(instr, Riscv.Alloc):
+            subEmitter.emitAllocStack(instr, dstRegs[0])
+        else:
+            subEmitter.emitNative(instr.toNative(dstRegs, srcRegs))
 
     def allocRegFor(
         self, temp: Temp, isRead: bool, live: set[int], subEmitter: SubroutineEmitter

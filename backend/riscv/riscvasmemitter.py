@@ -55,7 +55,7 @@ class RiscvAsmEmitter(AsmEmitter):
             for symbol in bss_var:
                 self.printer.println(".global %s" % (symbol.name))
                 self.printer.println("%s:" % (symbol.name))
-                self.printer.println("    .space %d" % (4))
+                self.printer.println("    .space %d" % (symbol.type.size))
             self.printer.println("")
 
         self.printer.println(".text")
@@ -146,6 +146,9 @@ class RiscvAsmEmitter(AsmEmitter):
             # else:
             self.seq.append(Riscv.Store(instr.T0, Riscv.SP, -4 * (self.paraNum + len(Riscv.CallerSaved))))
             # self.callParaList.append(instr)
+
+        def visitAlloc(self, instr: Alloc) -> None:
+            self.seq.append(Riscv.Alloc(instr.dst, instr.size))
 
         def visitCall(self, instr: Call) -> None:
             for i in range(len(Riscv.CallerSaved)):
@@ -257,6 +260,11 @@ class RiscvSubroutineEmitter(SubroutineEmitter):
         #     #     )
         # else:
         self.buf.append(instr)
+
+    def emitAllocStack(self, instr: Riscv.Alloc, dst: Reg):
+        self.buf.append(Riscv.LoadImm(instr.dst, self.nextLocalOffset).toNative([dst], []))
+        self.buf.append(Riscv.Binary(tacop.BinaryOp.ADD, dst, dst, Riscv.SP))
+        self.nextLocalOffset += instr.size
 
     def emitLabel(self, label: Label):
         self.buf.append(Riscv.RiscvLabel(label).toNative([], []))

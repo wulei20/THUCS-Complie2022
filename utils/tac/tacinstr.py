@@ -1,5 +1,6 @@
 from enum import Enum, auto, unique
 from typing import Any, Optional, Union
+from utils.error import *
 
 from utils.label.label import Label
 from utils.tac.nativeinstr import NativeInstr
@@ -24,6 +25,9 @@ class TACInstr:
         self.label = label
 
     def getRead(self) -> list[int]:
+        for item in self.srcs:
+            if not hasattr(item, "index"):
+                raise DecafBadIndexError(self)
         return [src.index for src in self.srcs]
 
     def getWritten(self) -> list[int]:
@@ -109,7 +113,7 @@ class Load(TACInstr):
         self.dst = dst
     
     def __str__(self) -> str:
-        return "%s = load %s, %d" % (self.dst, self.T1, self.offset)
+        return "%s = load %s, %d" % (self.dst, self.addr_temp, self.offset)
 
     def accept(self, v: TACVisitor) -> None:
         return v.visitLoad(self)
@@ -126,6 +130,18 @@ class Store(TACInstr):
 
     def accept(self, v: TACVisitor) -> None:
         return v.visitStore(self)
+
+class Alloc(TACInstr):
+    def __init__(self, dst: Temp, size: int) -> None:
+        super().__init__(InstrKind.SEQ, [dst], [], None)
+        self.dst = dst
+        self.size = size
+    
+    def __str__(self) -> str:
+        return "%s = alloc %d" % (self.dst, self.size)
+
+    def accept(self, v: TACVisitor) -> None:
+        return v.visitAlloc(self)
 
 class LoadSymbol(TACInstr):
     def __init__(self, dst: Temp, symbol: str) -> None:

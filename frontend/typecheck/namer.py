@@ -57,7 +57,7 @@ class Namer(Visitor[ScopeStack, None]):
                 if symbol.hasbody:
                     raise DecafGlobalVarDefinedTwiceError(func.ident.value)
             if not has_key:
-                newfunc = FuncSymbol(func.ident.value, func.ret_t, funcScope, True)
+                newfunc = FuncSymbol(func.ident.value, func.ret_t.type, funcScope, True)
                 func.setattr('symbol', newfunc)
                 ctx.globalscope.declare(newfunc)
             ctx.open(funcScope)
@@ -68,7 +68,7 @@ class Namer(Visitor[ScopeStack, None]):
             ctx.close()
         else:
             if not has_key:
-                newfunc = FuncSymbol(func.ident.value, func.ret_t, funcScope, False)
+                newfunc = FuncSymbol(func.ident.value, func.ret_t.type, funcScope, False)
                 ctx.globalscope.declare(newfunc)
                 ctx.open(funcScope)
                 for param in func.params:
@@ -80,6 +80,18 @@ class Namer(Visitor[ScopeStack, None]):
             for param in func.params:
                 func.getattr('symbol').addParaType(param.var_t.type)
         
+    def visitIndexExpr(self, indexExpr: IndexExpr, ctx: ScopeStack) -> None:
+        if not indexExpr.isDeclaration:
+            symbol = ctx.lookup(indexExpr.base.value)
+            if not symbol or not symbol.type.dim == len(indexExpr.index):
+                raise DecafUndefinedVarError("array ( %s )" % (str(indexExpr.base.value)))
+            for item in indexExpr.index:
+                item.accept(self, ctx)
+                if item.getattr('type') != INT:
+                    raise DecafBadArraySizeError()
+            indexExpr.setattr('type', symbol.type.full_indexed)
+            indexExpr.setattr('symbol', symbol)
+
     def visitCall(self, call: Call, ctx: ScopeStack) -> None:
         conflict = ctx.currentScope().containsKey(call.ident.value)
         if conflict:
@@ -91,14 +103,20 @@ class Namer(Visitor[ScopeStack, None]):
         call.setattr('symbol', func)
         for item in call.argu_list:
             item.accept(self, ctx)
+        call.setattr('type', func.type)
 
     def visitParameter(self, parameter: Parameter, ctx: ScopeStack) -> None:
         symbol = ctx.findConflict(parameter.ident.value)
         if symbol:
             raise DecafDeclConflictError(parameter.ident.value)
-        new_sym = VarSymbol(parameter.ident.value, parameter.var_t.type)
+        if isinstance(parameter.ident, Identifier):
+            new_sym = VarSymbol(parameter.ident.value, parameter.var_t.type)
+        elif isinstance(parameter.ident, IndexExpr):
+            arr_type = ArrayType.multidim(INT, [index.value for index in parameter.ident.index])
+            new_sym = VarSymbol(parameter.ident.value, arr_type)
         ctx.declare(new_sym)
         parameter.ident.setattr('symbol', new_sym)
+        parameter.setattr('type', new_sym.type)
 
     def visitBlock(self, block: Block, ctx: ScopeStack) -> None:
         if ctx.currentScope().kind != ScopeKind.FORMAL:
@@ -178,35 +196,66 @@ class Namer(Visitor[ScopeStack, None]):
         3. Set the 'symbol' attribute of decl.
         4. If there is an initial value, visit it.
         """
-        symbol = ctx.findConflict(decl.ident.value) # 注意是value不是name，value对应变量名，name对应对象类型（identifier）
+        if isinstance(decl.ident, Identifier):
+            symbol = ctx.findConflict(decl.ident.value) # 注意是value不是name，value对应变量名，name对应对象类型（identifier）
+            s1 = VarSymbol(decl.ident.value, decl.var_t.type)
+        elif isinstance(decl.ident, IndexExpr):
+            symbol = ctx.findConflict(decl.ident.base.value) # 注意是value不是name，value对应变量名，name对应对象类型（identifier
+            for index in decl.ident.index:
+                if index.value <= 0:
+                    raise DecafBadIndexError(decl.ident)
+            arr_type = ArrayType.multidim(INT, [index.value for index in decl.ident.index])
+            s1 = VarSymbol(decl.ident.base.value, arr_type)
+        else:
+            raise DecafUndefinedVarError(decl.ident.value)
         if symbol:
             raise DecafDeclConflictError(decl.ident.value) # 注意不是DecafGlobalVarDefinedTwiceError
-        s1 = VarSymbol(decl.ident.value, decl.var_t.type)
         ctx.declare(s1)
         decl.setattr('symbol', s1)
-        if ctx.isGlobalScope()and decl.init_expr:
-            if not isinstance(decl.init_expr, IntLiteral):
-                raise DecafGlobalVarBadInitValueError(str(decl.init_expr))
-            else:
-                s1.setInitValue(decl.init_expr.value)
-        if decl.init_expr:
-            decl.init_expr.accept(self, ctx)
+        decl.setattr('type', s1.type)
+        if ctx.isGlobalScope():
+            if decl.init_expr:
+                if not isinstance(decl.init_expr, IntLiteral):      # step12 针对数组初始化需要修正
+                    raise DecafGlobalVarBadInitValueError(str(decl.init_expr))
+                else:
+                    s1.setInitValue(decl.init_expr.value)
+        else:
+            if decl.init_expr:
+                decl.init_expr.accept(self, ctx)
+                if decl.init_expr.getattr('type') != decl.var_t.type:
+                    raise DecafBadAssignTypeError()
 
     def visitAssignment(self, expr: Assignment, ctx: ScopeStack) -> None:
         """
         1. Refer to the implementation of visitBinary.
         """
-        if not ctx.lookup(expr.lhs.value):
-            raise DecafUndefinedVarError(expr.lhs.value)
+        if isinstance(expr.lhs, Identifier):
+            value = expr.lhs.value
+        elif isinstance(expr.lhs, IndexExpr):
+            value = expr.lhs.base.value
+        else:
+            raise DecafBadAssignTypeError()
+        if not ctx.lookup(value):
+            raise DecafUndefinedVarError(value)
         expr.lhs.accept(self, ctx)
         expr.rhs.accept(self, ctx)
+        if expr.rhs.getattr('type') != expr.lhs.getattr('type') or expr.lhs.getattr('type') != INT:
+            # raise DecafBadFuncCallError(str(expr.rhs.getattr('type')) + str(expr.lhs.getattr('type')))
+            raise DecafBadAssignTypeError()
+        expr.setattr('type', expr.lhs.getattr('type'))
 
     def visitUnary(self, expr: Unary, ctx: ScopeStack) -> None:
         expr.operand.accept(self, ctx)
+        if expr.operand.getattr('type') != INT:
+            raise DecafBadAssignTypeError()
+        expr.setattr('type', expr.getattr('type'))
 
     def visitBinary(self, expr: Binary, ctx: ScopeStack) -> None:
         expr.lhs.accept(self, ctx)
         expr.rhs.accept(self, ctx)
+        if expr.rhs.getattr('type') != expr.lhs.getattr('type'):
+            raise DecafBadAssignTypeError()
+        expr.setattr('type', expr.lhs.getattr('type'))
 
     def visitCondExpr(self, expr: ConditionExpression, ctx: ScopeStack) -> None:
         """
@@ -215,6 +264,9 @@ class Namer(Visitor[ScopeStack, None]):
         expr.cond.accept(self, ctx)
         expr.then.accept(self, ctx)
         expr.otherwise.accept(self, ctx)
+        if not expr.cond.getattr('type') != INT or expr.then.getattr('type') != expr.otherwise.getattr('type'):
+            raise DecafBadAssignTypeError()
+        expr.setattr('type', expr.then.getattr('type'))
 
 
     def visitIdentifier(self, ident: Identifier, ctx: ScopeStack) -> None:
@@ -229,8 +281,10 @@ class Namer(Visitor[ScopeStack, None]):
         if symbol.isFunc:
             raise DecafBadFuncCallError(ident.value)
         ident.setattr('symbol', symbol)
+        ident.setattr('type', symbol.type)
 
     def visitIntLiteral(self, expr: IntLiteral, ctx: ScopeStack) -> None:
         value = expr.value
         if value > MAX_INT:
             raise DecafBadIntValueError(value)
+        expr.setattr('type', INT)
