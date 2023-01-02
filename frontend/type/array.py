@@ -57,7 +57,7 @@ class ArrayType(DecafType):
     def __eq__(self, o: object) -> bool:
         if (
             isinstance(o, type(self))
-            and o.length == self.length
+            and (o.length == self.length or self.length == -1 or o.length == -1)
             and o.base == self.base
         ):
             return True

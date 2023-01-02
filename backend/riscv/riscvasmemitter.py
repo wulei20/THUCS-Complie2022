@@ -45,9 +45,15 @@ class RiscvAsmEmitter(AsmEmitter):
         if len(data_var) > 0:
             self.printer.println(".data")
             for symbol in data_var:
-                self.printer.println(".global %s" % (symbol.name))
-                self.printer.println("%s:" % (symbol.name))
-                self.printer.println("    .word %d" % (symbol.initValue))
+                if isinstance(symbol.initValue, int):
+                    self.printer.println(".global %s" % (symbol.name))
+                    self.printer.println("%s:" % (symbol.name))
+                    self.printer.println("    .word %d" % (symbol.initValue))
+                elif isinstance(symbol.initValue, list):
+                    self.printer.println(".global %s" % (symbol.name))
+                    self.printer.println("%s:" % (symbol.name))
+                    for item in symbol.initValue:
+                        self.printer.println("    .word    %d" % (item.value))
             self.printer.println("")
 
         if len(bss_var) > 0:

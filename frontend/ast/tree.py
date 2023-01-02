@@ -122,44 +122,6 @@ class Parameter(Node):
     def accept(self, v: Visitor[T, U], ctx: T):
         return v.visitParameter(self, ctx)
 
-class Call(Node):
-    """
-    AST node that represents call for function
-    """
-
-    def __init__(self, ident: Identifier, argu_list: list[Expression]) -> None:
-        super().__init__("call")
-        self.ident = ident
-        self.argu_list = argu_list
-    
-    def __getitem__(self, key: int) -> Node:
-        return (self.ident, self.argu_list)[key]
-    
-    def __len__(self) -> int:
-        return 2
-    
-    def accept(self, v: Visitor[T, U], ctx: T):
-        return v.visitCall(self, ctx)
-
-class IndexExpr(Node):
-    """
-    AST node of index of an array
-    """
-    def __init__(self, base: Identifier, index: list[Expression | IntLiteral], isDeclaration: bool) -> None:
-        super().__init__("indexExpr")
-        self.base = base
-        self.index = index
-        self.isDeclaration = isDeclaration
-
-    def __getitem__(self, key: int) -> Node:
-        return (self.base, self.index)[key]
-
-    def __len__(self) -> int:
-        return 2
-
-    def accept(self, v: Visitor[T, U], ctx: T):
-        return v.visitIndexExpr(self, ctx)
-
 
 class Statement(Node):
     """
@@ -345,7 +307,7 @@ class Declaration(Node):
         self,
         var_t: TypeLiteral,
         ident: Union[Identifier, IndexExpr],
-        init_expr: Optional[Expression] = None,
+        init_expr: Optional[list[IntLiteral] | Expression] = None,
     ) -> None:
         super().__init__("declaration")
         self.var_t = var_t
@@ -370,6 +332,26 @@ class Expression(Node):
     def __init__(self, name: str) -> None:
         super().__init__(name)
         self.type: Optional[DecafType] = None
+
+
+class IndexExpr(Expression):
+    """
+    AST node of index of an array
+    """
+    def __init__(self, base: Identifier, index: list[Expression | IntLiteral | None], isDeclaration: bool) -> None:
+        super().__init__("indexExpr")
+        self.base = base
+        self.index = index
+        self.isDeclaration = isDeclaration
+
+    def __getitem__(self, key: int) -> Node:
+        return (self.base, self.index)[key]
+
+    def __len__(self) -> int:
+        return 2
+
+    def accept(self, v: Visitor[T, U], ctx: T):
+        return v.visitIndexExpr(self, ctx)
 
 
 class Unary(Expression):
@@ -496,6 +478,26 @@ class Identifier(Expression):
 
     def is_leaf(self):
         return True
+
+
+class Call(Expression):
+    """
+    AST node that represents call for function
+    """
+
+    def __init__(self, ident: Identifier, argu_list: list[Expression]) -> None:
+        super().__init__("call")
+        self.ident = ident
+        self.argu_list = argu_list
+    
+    def __getitem__(self, key: int) -> Node:
+        return (self.ident, self.argu_list)[key]
+    
+    def __len__(self) -> int:
+        return 2
+    
+    def accept(self, v: Visitor[T, U], ctx: T):
+        return v.visitCall(self, ctx)
 
 
 class IntLiteral(Expression):

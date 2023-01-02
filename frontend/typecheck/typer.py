@@ -32,7 +32,7 @@ class Typer(Visitor[ScopeStack, None]):
         if func.getattr('symbol').parameterNum != len(func.params):
             raise DecafGlobalVarDefinedTwiceError(func.ident.value)
         for num, item in enumerate(func.getattr('symbol').para_type):
-            if item != func.params[num].var_t.type:
+            if item != func.params[num].getattr('type'):
                 raise DecafGlobalVarDefinedTwiceError(func.ident.value)
         if func.body:
             func.body.accept(self, ctx)
@@ -40,10 +40,11 @@ class Typer(Visitor[ScopeStack, None]):
     def visitCall(self, call: Call, ctx: ScopeStack) -> None:
         if call.getattr('symbol').parameterNum != len(call.argu_list):
             raise DecafBadFuncCallError(call.ident.value)
-        for item in call.argu_list:
-            # if item != call.argu_list[num].getattr('symbol')      type set and type check, omitted
-            # raise DecafBadFuncCallError(call.ident.value)
-            item.accept(self, ctx)
+        for i in range(len(call.argu_list)):
+            if call.getattr('symbol').para_type[i] != call.argu_list[i].getattr('type'):
+                raise DecafBadFuncCallError(call.ident.value)
+                # raise DecafBadFuncCallError(str(call.getattr('symbol').para_type[i]) + "     " + str(call.argu_list[i].getattr('type')))
+            call.argu_list[i].accept(self, ctx)
 
     def visitBlock(self, block: Block, ctx: ScopeStack) -> None:
         for child in block:
@@ -95,7 +96,7 @@ class Typer(Visitor[ScopeStack, None]):
         3. Set the 'symbol' attribute of decl.
         4. If there is an initial value, visit it.
         """
-        if decl.init_expr:
+        if decl.init_expr and not isinstance(decl.init_expr, list):
             decl.init_expr.accept(self, ctx)
 
     def visitAssignment(self, expr: Assignment, ctx: ScopeStack) -> None:

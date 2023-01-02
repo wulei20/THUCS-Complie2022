@@ -75,9 +75,12 @@ def p_function_decl(p):
 
 def p_paramlist(p):
     """
-    paramlist : paramlist Comma type Identifier
+    paramlist : paramlist Comma type Identifier paramindex
     """
-    p[1].append(Parameter(p[3], p[4]))
+    if not p[5]:
+        p[1].append(Parameter(p[3], p[4]))
+    else:
+        p[1].append(Parameter(p[3], IndexExpr(p[4], p[5], True)))
     p[0] = p[1]
 
 def p_paramlist_empty(p):
@@ -88,9 +91,37 @@ def p_paramlist_empty(p):
 
 def p_paramlist_single(p):
     """
-    paramlist : type Identifier
+    paramlist : type Identifier paramindex
     """
-    p[0] = [Parameter(p[1], p[2])]
+    if not p[3]:
+        p[0] = [Parameter(p[1], p[2])]
+    else:
+        p[0] = [Parameter(p[1], IndexExpr(p[2], p[3], True))]
+
+def p_paramindex_empty(p):
+    """
+    paramindex : empty
+    """
+    p[0] = []
+
+def p_paramindex_single(p):
+    """
+    paramindex : LBracket RBracket
+    """
+    p[0] = [None]
+
+def p_paramindex_index(p):
+    """
+    paramindex : paramindex LBracket Integer RBracket
+    """
+    p[1].append(p[3])
+    p[0] = p[1]
+
+def p_paramindex_single_int(p):
+    """
+    paramindex : LBracket Integer RBracket
+    """
+    p[0] = [p[2]]
 
 def p_block(p):
     """
@@ -211,25 +242,52 @@ def p_opt_expression_empty(p):
 
 def p_declaration(p):
     """
+    declaration : type Identifier
+    """
+    p[0] = Declaration(p[1], p[2])
+
+def p_declaraction_array(p):
+    """
     declaration : type Identifier arrayindex
     """
-    if p[3]:
-        p[0] = Declaration(p[1], IndexExpr(p[2], p[3], True))
-    else:
-        p[0] = Declaration(p[1], p[2])
+    p[0] = Declaration(p[1], IndexExpr(p[2], p[3], True))
 
+def p_declaration_array_init(p):
+    """
+    declaration : type Identifier arrayindex arrayInit
+    """
+    p[0] = Declaration(p[1], IndexExpr(p[2], p[3], True), p[4])
+
+def p_arrayInit_list(p):
+    """
+    arrayInit : Assign LBrace integerList RBrace
+    """
+    p[0] = p[3]
+
+def p_integerList_integer(p):
+    """
+    integerList : integerList Comma Integer
+    """
+    p[1].append(p[3])
+    p[0] = p[1]
+
+def p_integerList_single(p):
+    """
+    integerList : Integer
+    """
+    p[0] = [p[1]]
+
+def p_integerList_empty(p):
+    """
+    integerList : empty
+    """
+    p[0] = []
 
 def p_declaration_init(p):
     """
     declaration : type Identifier Assign expression
     """
     p[0] = Declaration(p[1], p[2], p[4])
-    
-def p_arrayindex_empty(p):
-    """
-    arrayindex : empty
-    """
-    p[0] = []
 
 def p_arrayindex(p):
     """
@@ -237,6 +295,12 @@ def p_arrayindex(p):
     """
     p[1].append(p[3])
     p[0] = p[1]
+
+def p_arrayindex_single(p):
+    """
+    arrayindex : LBracket Integer RBracket
+    """
+    p[0] = [p[2]]
 
 def p_expression_precedence(p):
     """

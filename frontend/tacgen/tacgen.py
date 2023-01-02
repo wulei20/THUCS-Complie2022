@@ -40,7 +40,10 @@ class TACGen(Visitor[FuncVisitor, None]):
             if funcs[funcname].body is not NULL:
                 fv = pw.visitFunc(funcname, len(funcs[funcname].params))
                 for param in funcs[funcname].params:
-                    param.ident.getattr('symbol').temp = fv.freshTemp()
+                    if isinstance(param.ident, Identifier):
+                        param.ident.getattr('symbol').temp = fv.freshTemp()
+                    elif isinstance(param.ident, IndexExpr):
+                        param.ident.getattr('symbol').baseTemp = fv.freshTemp()
                 funcs[funcname].body.accept(self, fv)
                 fv.visitEnd()
         # Remember to call pw.visitEnd before finishing the translation phase.
@@ -75,11 +78,18 @@ class TACGen(Visitor[FuncVisitor, None]):
         """
         # if not hasattr(ident.getattr('symbol'), 'temp'):
         #     raise DecafGlobalVarDefinedTwiceError(ident.getattr('symbol'))
-        if hasattr(ident.getattr('symbol'), 'temp'):
-            ident.setattr('val', ident.getattr('symbol').temp)
-        else:
-            temp = mv.visitLoad(ident.value)
-            ident.setattr('val', mv.visitLoadTemp(temp, 0))
+        if ident.getattr('symbol').type == INT:
+            if hasattr(ident.getattr('symbol'), 'temp'):
+                ident.setattr('val', ident.getattr('symbol').temp)
+            else:
+                temp = mv.visitLoad(ident.value)
+                ident.setattr('val', mv.visitLoadTemp(temp, 0))
+        elif isinstance(ident.getattr('symbol').type, ArrayType):
+            if hasattr(ident.getattr('symbol'), 'baseTemp'):
+                ident.setattr('val', ident.getattr('symbol').baseTemp)
+            else:
+                ident.setattr('val', mv.visitLoad(ident.value))
+                
 
     def visitIndexExpr(self, indexExpr: IndexExpr, mv: FuncVisitor) -> None:
         indexExpr.index[0].accept(self, mv)
@@ -116,7 +126,12 @@ class TACGen(Visitor[FuncVisitor, None]):
                     'val', mv.visitAssignment(decl.getattr('symbol').temp, decl.init_expr.getattr('val'))
                 )
         elif isinstance(decl.ident, IndexExpr):
-            decl.getattr('symbol').baseTemp = mv.visitAlloc(decl.getattr('symbol').type.size) # step12 需要设置init_expr
+            decl.getattr('symbol').baseTemp = mv.visitAlloc(decl.getattr('symbol').type.size)
+            temp = decl.getattr('symbol').baseTemp
+            if decl.init_expr:
+                for i in range(len(decl.init_expr)):
+                    value_temp = mv.visitLoad(decl.init_expr[i].value)
+                    mv.visitStoreTemp(value_temp, temp, 4 * i)
         else:
             raise DecafBadAssignTypeError()
 
